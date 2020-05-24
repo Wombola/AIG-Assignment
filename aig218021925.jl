@@ -7,25 +7,23 @@ using CSV, DataFrames, Statistics;
 datbas1 = CSV.read("bank-additional-full.csv")
 datbas = convert(Matrix,datbas1)
 
-#
+#standardizing the values
 function reg(x)
-    μ = mean(x, dims=1)
-    σ = std(x, dims=1)
-    xn = (x .- μ) ./ σ
-    return (xn, μ, σ);
+    t = mean(x, dims=1)
+    j = std(x, dims=1)
+    xn = (x .- t) ./ j
+    return (xn, t, j);
 end
 
-#
-function stdiz(x, μ, σ)
-            xn = (x .- μ) ./ σ
+function stdiz(x, t, j)
+            xn = (x .- t) ./ j
     return xn;
 end
 
-#
-xt, μ, σ = reg(x_train);
-xtst = stdiz(x_test, μ, σ);
+xt, t, j = reg(x_train);
+xtst = stdiz(x_test, t, j);
 
-
+#cleaning data
 function cleanUp(DST)
     f= DST[:,21]
     y = Array{Int64}(undef,size(DST)[1],1)
@@ -163,103 +161,72 @@ function cleanUp(DST)
         else
             DST[i,21] = 0
         end
-
-#
+            
     x = convert(Array{Float64},DST[:,1:20])
     return (x,y)
 end
 
-#
+#hypothesis
 function hypo(z)
     return 1 ./ (1 .+ exp.(.-z))
 end
 
-#
 function regcst(x, y, θ, λ)
-    m = length(y)
-
-    h = hypo(x * θ)
-
-    pcst = ((-y)' * log.(h))
-
-    ncst = ((1 .- y)' * log.(1 .- h))
-
-    lreg = (λ/(2*m) * sum(θ[2 : end] .^ 2))
-
-    𝐉 = (1/m) * (pcst - ncst) + lreg
-
-    ∇𝐉 = (1/m) * (x') * (h-y) + ((1/m) * (λ * θ))  # Penalise all members
-
-    ∇𝐉[1] = (1/m) * (x[:, 1])' * (h-y) # Exclude the cons
-
-    return (𝐉, ∇𝐉)
+    d = length(y)
+    k = hypo(x * θ)
+    pcst = ((-y)' * log.(k))
+    ncst = ((1 .- y)' * log.(1 .- k))
+    lreg = (λ/(2*d) * sum(θ[2 : end] .^ 2))
+    q = (1/d) * (pcst - ncst) + lreg
+    pq = (1/d) * (x') * (k-y) + ((1/d) * (λ * θ)) 
+    pq[1] = (1/d) * (x[:, 1])' * (k-y) 
+    return (q, pq)
 end
 
-function loggd(x, y, λ, FI=true, η=0.01, numbr=1000)
-    
-    # Initialize some useful values
-    m = length(y); # number of training examples
+#gradient descent
+function loggd(x, y, λ, FI=true, d=0.01, numbr=1000)
 
-    if FI
-        # Add a cons of 1s if FI is specified
-        cons = ones(m, 1)
+    u = length(y); 
+    if FI     
+        cons = ones(u, 1)
         x = hcat(cons, x)
     else
-        x # Assume user added conss
+        x
     end
-
-    # Use the number of features to initialise the theta θ vector
-    n = size(x)[2]
-    θ = zeros(n)
-
-    # Initialise the cost vector based on the number of iterations
-    𝐉 = zeros(numbr)
-
+    b = size(x)[2]
+    g = zeros(b)
+    v = zeros(numbr)
     for iter in range(1, stop=numbr)
-
-        # Calcaluate the cost and gradient (∇𝐉) for each iter
-        𝐉[iter], ∇𝐉 = regcst(x, y, θ, λ)
-
-        # Update θ using gradients (∇𝐉) for direction and (η) for the magnitude of steps in that direction
-        θ = θ - (η * ∇𝐉)
+    v[iter], ev = regcst(x, y, θ, λ)
+    g = g - (d * ev)
     end
-
-    return (θ, 𝐉)
+    return (θ, v)
 end
-
-cd = cleanUp(datbas)
-
-x = cd[1]
+#training/testing
+cln = cleanUp(datbas)
+x = cln[1]
 x = reg(x)
-f = cd[2]
-oneMatrix = ones(size(x)[1])
-x = hcat(x,oneMatrix)
-theta = zeros(size(x)[2])
-
-#
+f = cln[2]
+mtx = ones(size(x)[1])
+x = hcat(x,mtx)
+rey = zeros(size(x)[2])
 i = trunc(Int,(size(x)[1]) * 0.8)
-#
 x_train = x[1:i,:]
 y_train = f[1:i,:]
-
-#
 x_test = x[i+1:size(x)[1],:]
 y_test = f[i+1:size(x)[1],:]
-
-#
 function predi(x, θ, FI=true)
-    m = size(x)[1]
+    o = size(x)[1]
 
     if FI
-        # Add a cons of 1s if FI is specified
-        cons = ones(m, 1)
+        cons = ones(o, 1)
         x = hcat(cons, x)
     else
         x
     end
 
-    h = hypo(x * θ)
-    return h
+    j = hypo(x * θ)
+    return j
 end
 
 #
